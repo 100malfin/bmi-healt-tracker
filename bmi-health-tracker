@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kalkulator BMI & Kalori - Mapin</title>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> 
+
+  <style>
+    :root {
+      --bg-color: #f4f4f4;
+      --card-bg: white;
+      --text-color: #333;
+      --btn-bg: #0d1b1e;
+      --btn-hover: #1b262c;
+      --history-text: #333;
+    }
+
+    .dark-mode {
+      --bg-color: #1b1b1b;
+      --card-bg: #2a2a2a;
+      --text-color: #f9f9f9;
+      --btn-bg: #70c1b3;
+      --btn-hover: #5ca399;
+      --history-text: #000; /* Ubah warna teks riwayat jadi hitam */
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: var(--bg-color);
+      color: var(--text-color);
+      padding: 2rem;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: auto;
+      background: var(--card-bg);
+      padding: 2rem;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    input[type="text"], input[type="number"], select {
+      width: 100%;
+      padding: 0.7rem;
+      margin: 0.5rem 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    button {
+      width: 100%;
+      padding: 0.7rem;
+      background: var(--btn-bg);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background: var(--btn-hover);
+    }
+
+    .result {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 5px;
+      display: none;
+    }
+
+    .underweight { background: #ffe066; color: #333; }
+    .normal { background: #70c1b3; color: white; }
+    .overweight { background: #f28482; color: white; }
+    .obese { background: #e63946; color: white; }
+
+    .history {
+      margin-top: 2rem;
+      background: #eee;
+      padding: 1rem;
+      border-radius: 5px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .history ul li {
+      color: var(--history-text);
+      text-align: left;
+    }
+
+    canvas {
+      margin-top: 2rem;
+      max-width: 100%;
+    }
+
+    .toggle-btn {
+      background: #aaa;
+    }
+
+    footer {
+      margin-top: 2rem;
+      font-size: 0.9rem;
+      color: gray;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Kalkulator BMI & Kalori</h1>
+    <button class="toggle-btn" onclick="toggleDarkMode()">🌞/🌙 Mode</button>
+
+    <label>Nama:</label>
+    <input type="text" id="name" placeholder="Masukkan nama kamu" />
+
+    <label>Berat Badan (kg):</label>
+    <input type="number" id="weight" placeholder="Contoh: 60" />
+
+    <label>Tinggi Badan (cm):</label>
+    <input type="number" id="height" placeholder="Contoh: 170" />
+
+    <label>Usia:</label>
+    <input type="number" id="age" placeholder="Contoh: 22" />
+
+    <label>Jenis Kelamin:</label>
+    <select id="gender">
+      <option value="male">Laki-laki</option>
+      <option value="female">Perempuan</option>
+    </select>
+
+    <label>Aktivitas Harian:</label>
+    <select id="activity">
+      <option value="1.2">Sangat Ringan (jarang olahraga)</option>
+      <option value="1.375">Ringan (olahraga 1–3x/minggu)</option>
+      <option value="1.55">Sedang (olahraga 3–5x/minggu)</option>
+      <option value="1.725">Berat (olahraga 6–7x/minggu)</option>
+      <option value="1.9">Sangat Berat (olahraga intensif + kerja fisik)</option>
+    </select>
+
+    <button onclick="calculateAll()">Hitung Semua</button>
+
+    <div id="output" class="result"></div>
+    <div id="tip-box" style="margin-top:1rem;"></div>
+
+    <canvas id="bmiChart" width="400" height="200"></canvas>
+
+    <div class="history" id="history-section">
+      <h3>Riwayat Perhitungan</h3>
+      <ul id="history-list"></ul>
+    </div>
+
+    <footer>
+      Dibuat oleh: Alfin 💻
+    </footer>
+  </div>
+
+  <script>
+    let bmiChart;
+
+    window.onload = function() {
+      loadHistory();
+      checkDarkMode();
+
+      const ctx = document.getElementById('bmiChart').getContext('2d');
+      bmiChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'BMI',
+            data: [],
+            borderColor: '#e63946',
+            fill: false,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    function calculateAll() {
+      const name = document.getElementById("name").value.trim();
+      const weight = parseFloat(document.getElementById("weight").value);
+      const heightCm = parseFloat(document.getElementById("height").value);
+      const age = parseFloat(document.getElementById("age").value);
+      const gender = document.getElementById("gender").value;
+      const activityLevel = parseFloat(document.getElementById("activity").value);
+
+      if (!name || isNaN(weight) || isNaN(heightCm) || isNaN(age)) {
+        alert("Silakan lengkapi semua data dengan benar.");
+        return;
+      }
+
+      const heightM = heightCm / 100;
+      const bmi = (weight / (heightM * heightM)).toFixed(2);
+      const idealWeight = (22 * (heightM * heightM)).toFixed(1);
+
+      // Rumus Mifflin-St Jeor
+      let bmr = gender === "male"
+        ? (10 * weight) + (6.25 * heightCm) - (5 * age) + 5
+        : (10 * weight) + (6.25 * heightCm) - (5 * age) - 161;
+
+      const tdee = (bmr * activityLevel).toFixed(0);
+
+      let category = "";
+      let className = "";
+
+      if (bmi < 18.5) {
+        category = "Kurang berat badan";
+        className = "underweight";
+      } else if (bmi >= 18.5 && bmi < 24.9) {
+        category = "Berat badan normal";
+        className = "normal";
+      } else if (bmi >= 24.9 && bmi < 29.9) {
+        category = "Kelebihan berat badan";
+        className = "overweight";
+      } else {
+        category = "Obesitas";
+        className = "obese";
+      }
+
+      const resultText = `
+        <strong>Halo, ${name}!</strong><br>
+        BMI kamu adalah <strong>${bmi}</strong> (${category})<br>
+        Berat ideal: <strong>${idealWeight}</strong> kg<br>
+        Kalori harian ideal: <strong>${tdee}</strong> kalori/hari`;
+
+      const outputDiv = document.getElementById("output");
+      outputDiv.className = "result " + className;
+      outputDiv.innerHTML = resultText;
+      outputDiv.style.display = "block";
+
+      // Tips Kesehatan Otomatis
+      const tipBox = document.getElementById("tip-box");
+      if (bmi < 18.5) {
+        tipBox.innerHTML = "<em>Tips: Tambah asupan kalori dengan makanan bergizi seperti kacang-kacangan dan susu.</em>";
+      } else if (bmi >= 25) {
+        tipBox.innerHTML = "<em>Tips: Perbanyak aktivitas fisik dan konsumsi sayur serta buah untuk menjaga kesehatan tubuh.</em>";
+      } else {
+        tipBox.innerHTML = "<em>Tips: Pertahankan pola hidup sehat dan jaga pola makan serta olahraga teratur.</em>";
+      }
+
+      // Save to history and update chart
+      saveToHistory(name, bmi);
+    }
+
+    function saveToHistory(name, bmi) {
+      let history = JSON.parse(localStorage.getItem("bmiHistory")) || [];
+      const entry = {
+        name,
+        bmi,
+        date: new Date().toLocaleDateString()
+      };
+      history.unshift(entry);
+      localStorage.setItem("bmiHistory", JSON.stringify(history));
+      loadHistory();
+      updateChart();
+    }
+
+    function loadHistory() {
+      const list = document.getElementById("history-list");
+      list.innerHTML = "";
+      let history = JSON.parse(localStorage.getItem("bmiHistory")) || [];
+
+      if (history.length === 0) {
+        list.innerHTML = "<li>Belum ada riwayat.</li>";
+        return;
+      }
+
+      for (let entry of history.slice(0, 5)) {
+        list.innerHTML += `<li><strong>${entry.name}</strong>: BMI ${entry.bmi} - (${entry.date})</li>`;
+      }
+    }
+
+    function updateChart() {
+      let history = JSON.parse(localStorage.getItem("bmiHistory")) || [];
+
+      if (history.length === 0) return;
+
+      const labels = history.map(e => e.date);
+      const data = history.map(e => e.bmi);
+
+      bmiChart.data.labels = labels;
+      bmiChart.data.datasets[0].data = data;
+      bmiChart.update();
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle("dark-mode");
+      localStorage.setItem("darkMode", document.body.classList.contains("dark-mode"));
+    }
+
+    function checkDarkMode() {
+      const isDark = localStorage.getItem("darkMode") === "true";
+      if (isDark) {
+        document.body.classList.add("dark-mode");
+      }
+    }
+  </script>
+
+</body>
+</html>
